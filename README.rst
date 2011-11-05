@@ -15,7 +15,8 @@ Usage
    Note that Captain Nemo requires at least version 1.0-0ubuntu2 of the
    ``python-nautilus`` package in Ubuntu.
 
-2. Copy `captain-nemo.py <captain-nemo.py>`_ to
+2. Copy `captain-nemo.py
+   <https://raw.github.com/vitaut/captain-nemo/master/captain-nemo.py>`_ to
    ``~/.local/share/nautilus-python/extensions/``
 
 3. Restart nautilus::
