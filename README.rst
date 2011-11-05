@@ -24,3 +24,11 @@ Usage
      nautilus -q
      nautilus &
 
+Authors
+-------
+
+Victor Zverovich
+~~~~~~~~~~~~~~~~
+
+* https://github.com/vitaut
+* http://zverovich.net
