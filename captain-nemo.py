@@ -216,10 +216,13 @@ class WindowAgent:
         window.add_accel_group(self.accel_group)
 
         self.find_widgets(window)
-        # TODO: remove accelerator from show/hide extra pane
         self.show_extra_pane(self.menubar)
 
-        # Add accelerators to the "Copy/Move to next pane" operations.
+        # Remove the accelerator from the 'Show Hide Extra Pane' action.
+        Gtk.AccelMap.change_entry(
+            '<Actions>/ShellActions/Show Hide Extra Pane', 0, 0, True)
+
+        # Add accelerators to the "Copy/Move to next pane" action.
         accel_map = Gtk.AccelMap.get()
         key, mods = Gtk.accelerator_parse('F5')
         accel_map.add_entry('<Actions>/DirViewActions/Copy to next pane',
