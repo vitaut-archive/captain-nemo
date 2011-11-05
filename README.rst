@@ -12,6 +12,8 @@ Usage
 
      sudo apt-get install python-nautilus
 
+   `Click here <apt:python-nautilus>`_ to install ``python-nautilus``.
+
    Note that Captain Nemo requires at least version 1.0-0ubuntu2 of the
    ``python-nautilus`` package in Ubuntu.
 
