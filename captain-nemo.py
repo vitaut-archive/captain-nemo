@@ -208,12 +208,17 @@ class WidgetInspector(Gtk.Paned):
 class WindowAgent:
     def __init__(self, window):
         self.window = window
-        self.accel_group = Gtk.AccelGroup()
-        self.connect('F3', self.on_edit)
-        self.connect('F4', self.on_edit)
-        self.connect('<Ctrl>O', self.on_terminal)
-        self.connect('<Ctrl>G', self.on_git)
-        window.add_accel_group(self.accel_group)
+
+        accel_group = Gtk.accel_groups_from_object(window)[0]
+
+        def connect(accel, func):
+            key, mods = Gtk.accelerator_parse(accel)
+            accel_group.connect(key, mods, Gtk.AccelFlags.VISIBLE, func)
+
+        connect('F3', self.on_edit)
+        connect('F4', self.on_edit)
+        connect('<Ctrl>O', self.on_terminal)
+        connect('<Ctrl>G', self.on_git)
 
         self.find_widgets(window)
         self.show_extra_pane(self.menubar)
@@ -223,6 +228,7 @@ class WindowAgent:
             '<Actions>/ShellActions/Show Hide Extra Pane', 0, 0, True)
 
         # Add accelerators to the "Copy/Move to next pane" action.
+        # TODO: Copy/Move dialog
         accel_map = Gtk.AccelMap.get()
         key, mods = Gtk.accelerator_parse('F5')
         accel_map.add_entry('<Actions>/DirViewActions/Copy to next pane',
@@ -295,10 +301,6 @@ class WindowAgent:
                 if result != None:
                     return result
         return None
-
-    def connect(self, accel, func):
-        key, mods = Gtk.accelerator_parse(accel)
-        self.accel_group.connect(key, mods, Gtk.AccelFlags.VISIBLE, func)
 
     def get_selection(self):
         focus = self.window.get_focus()
