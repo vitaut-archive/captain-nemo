@@ -27,7 +27,7 @@
 #   Ctrl+G - open a git client in the current directory
 # Also the Compare... item is added to the context menu.
 
-import os, subprocess, urllib
+import os, subprocess, urllib, traceback
 from gi.repository import Nautilus, GObject, Gtk, Gdk, GConf
 import collections
 
@@ -43,11 +43,45 @@ def get_filename(file_info):
 def has_file_scheme(f):
     return f.get_uri_scheme() == 'file'
 
+# This class provides depth-first traversal of a widget tree using an iterator.
+class walk:
+    def __init__(self, top, visit_submenu=True):
+        self._generator = self._walk(top)
+        self._visit_submenu = visit_submenu
+        self._skip_children = False
+        self._depth = 0
+
+    def __iter__(self):
+        return self._generator.__iter__()
+
+    def depth(self):
+        return self._depth
+
+    # Skip children of the current widget.
+    def skip_children(self):
+        self._skip_children = True
+
+    def _walk(self, widget):
+        if widget == None: return
+        yield widget
+        if self._skip_children:
+            self._skip_children = False
+            return
+        self._depth += 1
+        if isinstance(widget, Gtk.Container):
+            for child in widget.get_children():
+                for w in self._walk(child):
+                    yield w
+        if self._visit_submenu and isinstance(widget, Gtk.MenuItem):
+            for w in self._walk(widget.get_submenu()):
+                yield w
+        self._depth -= 1
+
 # Widget inspector provides a view of the widget tree.
 # It is used in the debug mode (when DEBUG is True).
-class WidgetInspector(Gtk.Paned):
+class WidgetInspector(Gtk.Notebook):
     def __init__(self, window):
-        Gtk.Paned.__init__(self)
+        Gtk.Notebook.__init__(self)
         self.window = window
         self.highlight_style_provider = Gtk.CssProvider()
         self.highlight_style_provider.load_from_data(
@@ -61,10 +95,18 @@ class WidgetInspector(Gtk.Paned):
         self.connect('button-press-event', self.on_button_press_event)
         self.connect('popup-menu', self.popup_menu)
 
-        # Create panes.
+        self.append_page(self.create_widget_page(), Gtk.Label('Widgets'))
+        self.append_page(self.create_accelmap_page(),
+            Gtk.Label('Accelerator Map'))
+        self.append_page(self.create_accelgroup_page(),
+            Gtk.Label('Accelerator Group'))
+        self.show_all()
+
+    def create_widget_page(self):
         self.property_store = Gtk.TreeStore(str, str)
         self.highlighted_widgets = []
-        self.pack1(self.create_widget_tree(window))
+        paned = Gtk.Paned()
+        paned.pack1(self.create_widget_tree(self.window))
         notebook = Gtk.Notebook()
         self.doc_buffer = Gtk.TextBuffer()
         text_view = Gtk.TextView(buffer=self.doc_buffer)
@@ -72,10 +114,43 @@ class WidgetInspector(Gtk.Paned):
         win.add(text_view)
         notebook.append_page(win, Gtk.Label('Documentation'))
         notebook.append_page(self.create_property_list(), Gtk.Label('Members'))
-        self.pack2(notebook)
-        self.set_size_request(0, 200)
-        self.set_position(250)
-        self.show_all()
+        paned.pack2(notebook)
+        paned.set_size_request(0, 200)
+        paned.set_position(250)
+        return paned
+
+    def create_accelmap_page(self):
+        accel_store = Gtk.TreeStore(str, str)
+        def add_accel(data, accel_path, accel_key, accel_mods, changed):
+            label = Gtk.accelerator_get_label(accel_key, accel_mods)
+            accel_store.append(None, [label, accel_path])
+        Gtk.AccelMap.foreach(None, add_accel)
+        tree = Gtk.TreeView(accel_store)
+        tree.connect('button-press-event', self.on_button_press_event)
+        column = Gtk.TreeViewColumn('Key', Gtk.CellRendererText(), text=0)
+        tree.append_column(column)
+        column = Gtk.TreeViewColumn('Path', Gtk.CellRendererText(), text=1)
+        tree.append_column(column)
+        win = Gtk.ScrolledWindow()
+        win.add(tree)
+        return win
+
+    def create_accelgroup_page(self):
+        accel_group = Gtk.accel_groups_from_object(self.window)[0]
+        accel_store = Gtk.TreeStore(str, str)
+        def add_accel(key, closure, data):
+            label = Gtk.accelerator_get_label(key.accel_key, key.accel_mods)
+            accel_store.append(None, [label, str(closure)])
+        accel_group.find(add_accel, None)
+        tree = Gtk.TreeView(accel_store)
+        tree.connect('button-press-event', self.on_button_press_event)
+        column = Gtk.TreeViewColumn('Key', Gtk.CellRendererText(), text=0)
+        tree.append_column(column)
+        column = Gtk.TreeViewColumn('Closure', Gtk.CellRendererText(), text=1)
+        tree.append_column(column)
+        win = Gtk.ScrolledWindow()
+        win.add(tree)
+        return win
 
     @staticmethod
     def get_members(cls):
@@ -120,28 +195,6 @@ class WidgetInspector(Gtk.Paned):
         win = Gtk.ScrolledWindow()
         win.add(tree)
         return win
-
-    def collect_widgets_info(self, widget, iterator):
-        if widget == None:
-            return
-        name = widget.get_name()
-        iterator = self.widget_tree_store.append(iterator, [name, widget])
-        if isinstance(widget, Gtk.Container):
-            for child in widget.get_children():
-                self.collect_widgets_info(child, iterator)
-        if isinstance(widget, Gtk.MenuItem):
-            self.collect_widgets_info(widget.get_submenu(), iterator)
-
-    def highlight(self, widget):
-        if widget == self:
-            return
-        widget.get_style_context().add_provider(self.highlight_style_provider, \
-            Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
-        self.highlighted_widgets.append(widget)
-        if not isinstance(widget, Gtk.Container):
-            return
-        for child in widget.get_children():
-            self.highlight(child)
 
     def unhighlight(self):
         for widget in self.highlighted_widgets:
@@ -197,17 +250,74 @@ class WidgetInspector(Gtk.Paned):
         for m in members:
             self.property_store.append(None, [m, get_value(m)])
         self.unhighlight()
-        self.highlight(widget)
+        walker = walk(widget)
+        for w in walker:
+            if w == self:
+                walker.skip_children()
+                continue
+            w.get_style_context().add_provider(
+                self.highlight_style_provider,
+                Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
+            self.highlighted_widgets.append(w)
 
     def on_refresh(self, menuitem):
         self.unhighlight()
         self.widget_tree_store.clear()
-        self.collect_widgets_info(self.window, None)
+        parent_iters = [None]
+        walker = walk(self.window)
+        for w in walker:
+            depth = walker.depth()
+            name = w.get_name()
+            it = self.widget_tree_store.append(parent_iters[depth], [name, w])
+            if len(parent_iters) <= depth + 1:
+                parent_iters.append(it)
+            else:
+                parent_iters[depth + 1] = it
         self.widget_tree.expand_to_path(Gtk.TreePath('0:0:0:0'))
 
 class WindowAgent:
     def __init__(self, window):
         self.window = window
+        self.loc_entry1 = self.loc_entry2 = None
+
+        # Find the main paned widget and the menubar.
+        main_paned = menubar = None
+        walker = walk(window, False)
+        for w in walker:
+            name = w.get_name()
+            if name == 'NautilusToolbar':
+                p = w.get_parent()
+                while not isinstance(p, Gtk.Paned):
+                    p = p.get_parent()
+                main_paned = p
+                walker.skip_children()
+            if name == 'MenuBar':
+                menubar = w
+                walker.skip_children()
+
+        if menubar != None:
+            # Show extra pane.
+            for w in walk(menubar):
+                name = w.get_name()
+                if name == 'Show Hide Extra Pane':
+                    w.activate()
+                    break
+        else:
+            print 'Menu bar not found'
+
+        if main_paned != None:
+            # Find location entries.
+            self.loc_entry1 = self.find_loc_entry(main_paned.get_child1())
+            self.loc_entry2 = self.find_loc_entry(main_paned.get_child2())
+        else:
+            print 'Main paned not found'
+
+        # Remove the accelerator from the 'Show Hide Extra Pane' action (F3).
+        Gtk.AccelMap.change_entry(
+            '<Actions>/ShellActions/Show Hide Extra Pane', 0, 0, True)
+        # Remove the accelerator from the Open action (Ctrl+O)
+        Gtk.AccelMap.change_entry(
+            '<Actions>/DirViewActions/Open', 0, 0, True)
 
         accel_group = Gtk.accel_groups_from_object(window)[0]
 
@@ -217,28 +327,34 @@ class WindowAgent:
 
         connect('F3', self.on_edit)
         connect('F4', self.on_edit)
-        connect('<Ctrl>O', self.on_terminal)
-        connect('<Ctrl>G', self.on_git)
 
-        self.find_widgets(window)
-        self.show_extra_pane(self.menubar)
-
-        # Remove the accelerator from the 'Show Hide Extra Pane' action.
-        Gtk.AccelMap.change_entry(
-            '<Actions>/ShellActions/Show Hide Extra Pane', 0, 0, True)
+        if self.loc_entry1 != None and self.loc_entry2 != None:
+            connect('<Ctrl>O', self.on_terminal)
+            connect('<Ctrl>G', self.on_git)
+        else:
+            print 'Location entries not found'
 
         # Add accelerators to the "Copy/Move to next pane" action.
-        # TODO: Copy/Move dialog
         accel_map = Gtk.AccelMap.get()
+        copy_path = '<Actions>/DirViewActions/Copy to next pane'
         key, mods = Gtk.accelerator_parse('F5')
-        accel_map.add_entry('<Actions>/DirViewActions/Copy to next pane',
-            key, mods)
+        accel_map.add_entry(copy_path, key, mods)
         key, mods = Gtk.accelerator_parse('F6')
-        accel_map.add_entry('<Actions>/DirViewActions/Move to next pane',
-            key, mods)
+        move_path = '<Actions>/DirViewActions/Move to next pane'
+        accel_map.add_entry(move_path, key, mods)
 
-        self.loc_entry1 = self.find_loc_entry(self.main_paned.get_child1())
-        self.loc_entry2 = self.find_loc_entry(self.main_paned.get_child2())
+        def find_closures(key, closure, data):
+            name = Gtk.accelerator_get_label(key.accel_key, key.accel_mods)
+            if name == 'F5':
+                self.copy_closure = closure
+                accel_group.disconnect(closure)
+            elif name == 'F6':
+                self.move_closure = closure
+                accel_group.disconnect(closure)
+        accel_group.find(find_closures, None)
+
+        accel_group.connect_by_path(copy_path, self.on_copy)
+        accel_group.connect_by_path(move_path, self.on_move)
 
         if not DEBUG:
             return
@@ -253,54 +369,10 @@ class WindowAgent:
         paned.show()
         window.add(paned)
 
-    # Finds the main paned widget and the menubar.
-    def find_widgets(self, widget):
-        if widget == None:
-            return
-        name = widget.get_name()
-        if name == 'NautilusToolbar':
-            w = widget.get_parent()
-            while not isinstance(w, Gtk.Paned):
-                w = w.get_parent()
-            self.main_paned = w
-            return
-        if name == 'MenuBar':
-            self.menubar = widget
-            return
-        if isinstance(widget, Gtk.Container):
-            for child in widget.get_children():
-                self.find_widgets(child)
-
-    def show_extra_pane(self, widget):
-        if widget == None:
-            return False
-        name = widget.get_name()
-        if isinstance(widget, Gtk.MenuItem):
-            if name == 'Show Hide Extra Pane':
-                widget.activate()
-                return True
-            found = self.show_extra_pane(widget.get_submenu())
-            if found:
-                return True
-        if isinstance(widget, Gtk.Container):
-            for child in widget.get_children():
-                found = self.show_extra_pane(child)
-                if found:
-                    return True 
-        return False
-
     def find_loc_entry(self, widget):
-        if widget == None:
-            return None
-        name = widget.get_name()
-        if name == 'NautilusLocationEntry':
-            return widget
-        if isinstance(widget, Gtk.Container):
-            for child in widget.get_children():
-                result = self.find_loc_entry(child)
-                if result != None:
-                    return result
-        return None
+        for w in walk(widget):
+            if w.get_name() == 'NautilusLocationEntry':
+                return w
 
     def get_selection(self):
         focus = self.window.get_focus()
@@ -312,6 +384,28 @@ class WindowAgent:
         uris = []
         focus.get_selection().selected_foreach(collect_uris, uris)
         return uris
+
+    def show_copy_move_dialog(self, title, message):
+        md = Gtk.MessageDialog(parent=self.window, title=title)
+        md.set_property('message-type', Gtk.MessageType.QUESTION)
+        md.set_markup(message)
+        md.add_button(Gtk.STOCK_OK, Gtk.ResponseType.OK)
+        md.add_button(Gtk.STOCK_CANCEL, Gtk.ResponseType.CANCEL)
+        result = md.run()
+        md.destroy()
+        return result == Gtk.ResponseType.OK
+
+    def on_copy(self, accel_group, acceleratable, keyval, modifier):
+        if self.show_copy_move_dialog('Copy',
+            'Do you want to copy selected files/directories?'):
+            self.copy_closure.invoke(accel_group, acceleratable, keyval, modifier)
+        return True
+
+    def on_move(self, accel_group, acceleratable, keyval, modifier):
+        if self.show_copy_move_dialog('Move',
+            'Do you want to move selected files/directories?'):
+            self.move_closure.invoke(accel_group, acceleratable, keyval, modifier)
+        return True
 
     def on_edit(self, accel_group, acceleratable, keyval, modifier):
         subprocess.Popen([EDITOR] + self.get_selection())
@@ -340,14 +434,17 @@ class WidgetProvider(GObject.GObject, Nautilus.LocationWidgetProvider):
         self.window_agents = {}
 
     def get_widget(self, uri, window):
-        if uri == 'x-nautilus-desktop:///':
-            return None
-        agent = self.window_agents.get(window)
-        if agent != None:
-            return None
-        window.connect('destroy', lambda w: self.window_agents.pop(w))
-        agent = WindowAgent(window)
-        self.window_agents[window] = agent
+        try:
+            if uri == 'x-nautilus-desktop:///':
+                return None
+            agent = self.window_agents.get(window)
+            if agent != None:
+                return None
+            window.connect('destroy', lambda w: self.window_agents.pop(w))
+            agent = WindowAgent(window)
+            self.window_agents[window] = agent
+        except:
+            print traceback.print_exc()
         return None
 
 class CompareMenuProvider(GObject.GObject, Nautilus.MenuProvider):
