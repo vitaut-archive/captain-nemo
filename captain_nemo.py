@@ -334,27 +334,15 @@ class WindowAgent:
         else:
             print 'Location entries not found'
 
-        # Add accelerators to the "Copy/Move to next pane" action.
-        accel_map = Gtk.AccelMap.get()
-        copy_path = '<Actions>/DirViewActions/Copy to next pane'
-        key, mods = Gtk.accelerator_parse('F5')
-        accel_map.add_entry(copy_path, key, mods)
-        key, mods = Gtk.accelerator_parse('F6')
-        move_path = '<Actions>/DirViewActions/Move to next pane'
-        accel_map.add_entry(move_path, key, mods)
-
-        def find_closures(key, closure, data):
-            name = Gtk.accelerator_get_label(key.accel_key, key.accel_mods)
-            if name == 'F5':
-                self.copy_closure = closure
-                accel_group.disconnect(closure)
-            elif name == 'F6':
-                self.move_closure = closure
-                accel_group.disconnect(closure)
-        accel_group.find(find_closures, None)
-
-        accel_group.connect_by_path(copy_path, self.on_copy)
-        accel_group.connect_by_path(move_path, self.on_move)
+        if menubar != None:
+            for w in walk(menubar):
+                name = w.get_name()
+                if name == 'Copy to next pane':
+                    connect('F5', self.on_copy)
+                    self.copy_menuitem = w
+                elif name == 'Move to next pane':
+                    connect('F6', self.on_move)
+                    self.move_menuitem = w
 
         if not DEBUG:
             return
@@ -398,13 +386,13 @@ class WindowAgent:
     def on_copy(self, accel_group, acceleratable, keyval, modifier):
         if self.show_copy_move_dialog('Copy',
             'Do you want to copy selected files/directories?'):
-            self.copy_closure.invoke(accel_group, acceleratable, keyval, modifier)
+            self.copy_menuitem.activate()
         return True
 
     def on_move(self, accel_group, acceleratable, keyval, modifier):
         if self.show_copy_move_dialog('Move',
             'Do you want to move selected files/directories?'):
-            self.move_closure.invoke(accel_group, acceleratable, keyval, modifier)
+            self.move_menuitem.activate()
         return True
 
     def on_edit(self, accel_group, acceleratable, keyval, modifier):
