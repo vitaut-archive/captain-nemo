@@ -343,19 +343,23 @@ class WindowAgent:
                 elif name == 'Move to next pane':
                     connect('F6', self.on_move)
                     self.move_menuitem = w
+                elif name == 'New Folder':
+                    connect('F7', self.on_mkdir)
+                    self.mkdir_menuitem = w
+                elif name == 'Trash':
+                    connect('F8', self.on_delete)
+                    self.delete_menuitem = w
 
-        if not DEBUG:
-            return
-
-        # Add the widget inspector.
-        child = window.get_child()
-        inspector = WidgetInspector(window)
-        window.remove(child)
-        paned = Gtk.VPaned()
-        paned.pack1(child, True, True)
-        paned.pack2(inspector, False, False)
-        paned.show()
-        window.add(paned)
+        if DEBUG:
+            # Add the widget inspector.
+            child = window.get_child()
+            inspector = WidgetInspector(window)
+            window.remove(child)
+            paned = Gtk.VPaned()
+            paned.pack1(child, True, True)
+            paned.pack2(inspector, False, False)
+            paned.show()
+            window.add(paned)
 
     def find_loc_entry(self, widget):
         for w in walk(widget):
@@ -373,7 +377,7 @@ class WindowAgent:
         focus.get_selection().selected_foreach(collect_uris, uris)
         return uris
 
-    def show_copy_move_dialog(self, title, message):
+    def show_dialog(self, title, message):
         md = Gtk.MessageDialog(parent=self.window, title=title)
         md.set_property('message-type', Gtk.MessageType.QUESTION)
         md.set_markup(message)
@@ -384,15 +388,25 @@ class WindowAgent:
         return result == Gtk.ResponseType.OK
 
     def on_copy(self, accel_group, acceleratable, keyval, modifier):
-        if self.show_copy_move_dialog('Copy',
+        if self.show_dialog('Copy',
             'Do you want to copy selected files/directories?'):
             self.copy_menuitem.activate()
         return True
 
     def on_move(self, accel_group, acceleratable, keyval, modifier):
-        if self.show_copy_move_dialog('Move',
+        if self.show_dialog('Move',
             'Do you want to move selected files/directories?'):
             self.move_menuitem.activate()
+        return True
+
+    def on_mkdir(self, accel_group, acceleratable, keyval, modifier):
+        self.mkdir_menuitem.activate()
+        return True
+
+    def on_delete(self, accel_group, acceleratable, keyval, modifier):
+        if self.show_dialog('Delete',
+            'Do you want to move selected files/directories to trash?'):
+            self.delete_menuitem.activate()
         return True
 
     def on_edit(self, accel_group, acceleratable, keyval, modifier):
