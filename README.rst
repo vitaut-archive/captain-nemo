@@ -9,8 +9,8 @@ Usage
 
 1. Install `Python bindings for the Nautilus Extension API
    <http://projects.gnome.org/nautilus-python/>`_ and introspection
-   data for GConf using the `python-nautilus <apt:python-nautilus>`_
-   and `gir1.2-gconf-2.0 <apt:gir1.2-gconf-2.0>`_ links or the following
+   data for GConf using the `python-nautilus <apt://python-nautilus>`_
+   and `gir1.2-gconf-2.0 <apt://gir1.2-gconf-2.0>`_ links or the following
    command::
 
      sudo apt-get install python-nautilus gir1.2-gconf-2.0
