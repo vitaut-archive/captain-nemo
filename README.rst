@@ -7,9 +7,23 @@ Captain Nemo is an extension which converts Nautilus into a two-panel
 Features
 --------
 
-Two-panel view:
+* Two-panel view:
 
 .. image:: https://github.com/vitaut/captain-nemo/raw/master/img/two-panel-view.png
+
+* Keyboard shortcuts:
+
+  ======  ================
+  Key     Operation
+  ======  ================
+  Ctrl+O  Open terminal
+  F3      View
+  F4      Edit
+  F5      Copy
+  F6      Rename/Move
+  F7      Create directory
+  F8      Delete
+  ======  ================
 
 Installation
 ------------
