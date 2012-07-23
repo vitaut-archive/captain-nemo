@@ -21,21 +21,28 @@
 # Ctrl+O  Open Terminal  Open File             Enter
 #
 # As can be seen from the above table for most redefined operations there
-# exist commonly used alternative.
+# exist commonly used alternatives.
 #
 # In addition this extension defined the following keyboard shortcut:
 #   Ctrl+G - open a git client in the current directory
-# Also the Compare... item is added to the context menu.
+# Also the Compare... item is added to the context menu when two items are
+# selected.
 
-import os, subprocess, urllib, traceback
+import os, subprocess, sys, urllib, traceback
 from gi.repository import Nautilus, GObject, Gtk, Gdk, GConf
 import collections
+import logging
 
 DIFF = 'meld'
 GIT_CLIENT = 'gitg'
 TERMINAL_KEY = '/desktop/gnome/applications/terminal/exec'
 EDITOR = 'gedit'
 DEBUG = False
+
+if DEBUG:
+    logging.basicConfig(
+        filename=os.path.join(os.path.dirname(__file__), 'captain_nemo.log'),
+        level=logging.DEBUG)
 
 def get_filename(file_info):
     return urllib.unquote(file_info.get_uri()[7:])
@@ -281,7 +288,7 @@ class WindowAgent:
         self.loc_entry1 = self.loc_entry2 = None
 
         # Find the main paned widget and the menubar.
-        main_paned = menubar = None
+        self.main_paned = menubar = None
         walker = walk(window, False)
         for w in walker:
             name = w.get_name()
@@ -289,7 +296,7 @@ class WindowAgent:
                 p = w.get_parent()
                 while not isinstance(p, Gtk.Paned):
                     p = p.get_parent()
-                main_paned = p
+                self.main_paned = p
                 walker.skip_children()
             if name == 'MenuBar':
                 menubar = w
@@ -305,10 +312,10 @@ class WindowAgent:
         else:
             print 'Menu bar not found'
 
-        if main_paned != None:
+        if self.main_paned != None:
             # Find location entries.
-            self.loc_entry1 = self.find_loc_entry(main_paned.get_child1())
-            self.loc_entry2 = self.find_loc_entry(main_paned.get_child2())
+            self.loc_entry1 = self.find_loc_entry(self.main_paned.get_child1())
+            self.loc_entry2 = self.find_loc_entry(self.main_paned.get_child2())
         else:
             print 'Main paned not found'
 
@@ -414,21 +421,34 @@ class WindowAgent:
         return True
 
     def get_location(self):
-        if self.loc_entry1.is_sensitive():
-            entry = self.loc_entry1
-        else:
-            entry = self.loc_entry2
+        w = self.window.get_focus()
+        while w != None:
+            if w == self.main_paned.get_child1():
+                entry = self.loc_entry1
+                break
+            if w == self.main_paned.get_child2():
+                entry = self.loc_entry2
+                break
+            w = w.get_parent()
         return entry.get_text()
 
     def on_terminal(self, accel_group, acceleratable, keyval, modifier):
-        terminal = GConf.Client.get_default().get_string(TERMINAL_KEY)
-        os.chdir(self.get_location())
-        subprocess.Popen([terminal])
+        try:
+            location = self.get_location()
+            logging.debug('on_terminal: location=%s', location)
+            terminal = GConf.Client.get_default().get_string(TERMINAL_KEY)
+            subprocess.Popen([terminal], cwd=location)
+        except:
+            logging.error('on_terminal: %s', sys.exc_info()[1])
         return True
 
     def on_git(self, accel_group, acceleratable, keyval, modifier):
-        os.chdir(self.get_location())
-        subprocess.Popen([GIT_CLIENT])
+        try:
+            location = self.get_location()
+            logging.debug('on_git: location=%s', location)
+            subprocess.Popen([GIT_CLIENT], cwd=location)
+        except:
+            logging.error('on_git: %s', sys.exc_info()[1])
         return True
 
 class WidgetProvider(GObject.GObject, Nautilus.LocationWidgetProvider):
