@@ -13,17 +13,17 @@ Features
 
 * Keyboard shortcuts:
 
-  ======  ================
-  Key     Operation
-  ======  ================
-  Ctrl+O  Open terminal
-  F3      View
-  F4      Edit
-  F5      Copy
-  F6      Rename/Move
-  F7      Create directory
-  F8      Delete
-  ======  ================
+======  ================
+Key     Operation
+======  ================
+Ctrl+O  Open terminal
+F3      View
+F4      Edit
+F5      Copy
+F6      Rename/Move
+F7      Create directory
+F8      Delete
+======  ================
 
 Installation
 ------------
