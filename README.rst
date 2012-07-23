@@ -13,17 +13,17 @@ Features
 
 * Keyboard shortcuts:
 
-======  ================
+======  ==========================================================
 Key     Operation
-======  ================
-Ctrl+O  Open terminal
-F3      View
-F4      Edit
-F5      Copy
-F6      Rename/Move
+======  ==========================================================
+Ctrl+O  Open terminal in the current directory of the active panel
+F3      View - currently opens the selected file in Gedit
+F4      Edit - currently opens the selected file in Gedit
+F5      Copy to another panel
+F6      Move to another panel
 F7      Create directory
-F8      Delete
-======  ================
+F8      Delete selected files and directories
+======  ==========================================================
 
 Installation
 ------------
