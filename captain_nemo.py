@@ -331,6 +331,9 @@ class WindowAgent:
         # Remove the accelerator from the 'Show Hide Extra Pane' action (F3).
         Gtk.AccelMap.change_entry(
             '<Actions>/ShellActions/Show Hide Extra Pane', 0, 0, True)
+        # Remove the accelerator from the 'SplitViewNextPane' action (F6).
+        Gtk.AccelMap.change_entry(
+            '<Actions>/ShellActions/SplitViewNextPane', 0, 0, True)
         # Remove the accelerator from the Open action (Ctrl+O)
         Gtk.AccelMap.change_entry(
             '<Actions>/DirViewActions/Open', 0, 0, True)
