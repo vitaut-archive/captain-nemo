@@ -28,10 +28,11 @@
 # Also the Compare... item is added to the context menu when two items are
 # selected.
 
-import os, subprocess, sys, urllib, traceback
-from gi.repository import Nautilus, GObject, Gtk, Gdk, GConf
+import os, subprocess, sys, traceback, urllib
 import collections
+import contextlib
 import logging
+from gi.repository import Nautilus, GObject, Gtk, Gdk, GConf
 
 DIFF = 'meld'
 GIT_CLIENT = 'gitg'
@@ -49,6 +50,14 @@ def get_filename(file_info):
 
 def has_file_scheme(f):
     return f.get_uri_scheme() == 'file'
+
+# Catches and logs all exceptions.
+@contextlib.contextmanager
+def catch_all():
+    try:
+        yield
+    except:
+        logging.error(sys.exc_info()[1])
 
 # This class provides depth-first traversal of a widget tree using an iterator.
 class walk:
@@ -395,29 +404,34 @@ class WindowAgent:
         return result == Gtk.ResponseType.OK
 
     def on_copy(self, accel_group, acceleratable, keyval, modifier):
-        if self.show_dialog('Copy',
-            'Do you want to copy selected files/directories?'):
-            self.copy_menuitem.activate()
+        with catch_all():
+            if self.show_dialog('Copy',
+                'Do you want to copy selected files/directories?'):
+                self.copy_menuitem.activate()
         return True
 
     def on_move(self, accel_group, acceleratable, keyval, modifier):
-        if self.show_dialog('Move',
-            'Do you want to move selected files/directories?'):
-            self.move_menuitem.activate()
+        with catch_all():
+            if self.show_dialog('Move',
+                'Do you want to move selected files/directories?'):
+                self.move_menuitem.activate()
         return True
 
     def on_mkdir(self, accel_group, acceleratable, keyval, modifier):
-        self.mkdir_menuitem.activate()
+        with catch_all():
+            self.mkdir_menuitem.activate()
         return True
 
     def on_delete(self, accel_group, acceleratable, keyval, modifier):
-        if self.show_dialog('Delete',
-            'Do you want to move selected files/directories to trash?'):
-            self.delete_menuitem.activate()
+        with catch_all():
+            if self.show_dialog('Delete',
+                'Do you want to move selected files/directories to trash?'):
+                self.delete_menuitem.activate()
         return True
 
     def on_edit(self, accel_group, acceleratable, keyval, modifier):
-        subprocess.Popen([EDITOR] + self.get_selection())
+        with catch_all():
+            subprocess.Popen([EDITOR] + self.get_selection())
         return True
 
     def get_location(self):
@@ -433,22 +447,18 @@ class WindowAgent:
         return entry.get_text()
 
     def on_terminal(self, accel_group, acceleratable, keyval, modifier):
-        try:
+        with catch_all():
             location = self.get_location()
             logging.debug('on_terminal: location=%s', location)
             terminal = GConf.Client.get_default().get_string(TERMINAL_KEY)
             subprocess.Popen([terminal], cwd=location)
-        except:
-            logging.error('on_terminal: %s', sys.exc_info()[1])
         return True
 
     def on_git(self, accel_group, acceleratable, keyval, modifier):
-        try:
+        with catch_all():
             location = self.get_location()
             logging.debug('on_git: location=%s', location)
             subprocess.Popen([GIT_CLIENT], cwd=location)
-        except:
-            logging.error('on_git: %s', sys.exc_info()[1])
         return True
 
 class WidgetProvider(GObject.GObject, Nautilus.LocationWidgetProvider):
