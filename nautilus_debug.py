@@ -7,7 +7,7 @@ from gi.repository import GObject, Gtk
 from threading import Thread
 from twisted.internet import reactor
 from twisted.manhole import telnet
-from widget_walk import walk
+from captain_nemo import walk
 
 # A thread running a telnet server for remote access to a Python shell
 # in Nautilus.

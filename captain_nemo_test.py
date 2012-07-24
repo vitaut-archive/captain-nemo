@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 from gi.repository import Gtk
-from widget_walk import walk
+from captain_nemo import walk
 import unittest
 
 class WalkTest(unittest.TestCase):
