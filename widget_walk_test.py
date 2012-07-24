@@ -1,10 +1,10 @@
 #!/usr/bin/env python
 
 from gi.repository import Gtk
-from captain_nemo import walk
+from widget_walk import walk
 import unittest
 
-class TestWalk(unittest.TestCase):
+class WalkTest(unittest.TestCase):
 
     def setUp(self):
         self.window = Gtk.Window()
