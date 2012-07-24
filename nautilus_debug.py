@@ -6,21 +6,26 @@ import time
 from gi.repository import GObject, Gtk
 from threading import Thread
 from twisted.internet import reactor
-from twisted.manhole import telnet
+from twisted.cred import portal, checkers
+from twisted.conch import manhole, manhole_ssh
 from captain_nemo import walk
 
-# A thread running a telnet server for remote access to a Python shell
+# A thread running an SSH server for remote access to a Python shell
 # in Nautilus.
-class TelnetThread(Thread):
+class SSHThread(Thread):
     def __init__(self, window_agents):
         Thread.__init__(self)
         # Make sure this thread is a daemon not to prevent program exit.
         self.daemon = True
-        factory = telnet.ShellFactory()
-        port = reactor.listenTCP(2001, factory)
-        factory.username = 'nemo'
-        factory.password = 'nemo'
-        factory.namespace['agents'] = window_agents
+        realm = manhole_ssh.TerminalRealm()
+        namespace = {'agents': window_agents}
+        def getManhole(_):
+            return manhole.Manhole(namespace)
+        realm.chainedProtocolFactory.protocolFactory = getManhole
+        p = portal.Portal(realm)
+        p.registerChecker(
+            checkers.InMemoryUsernamePasswordDatabaseDontUse(nemo='nemo'))
+        reactor.listenTCP(2222, manhole_ssh.ConchFactory(p))
         # Starting the thread is not enough because the Python interpreter
         # is no running all the time and therefore the thread will not run
         # too. Workaround this by using a timer to run the interpreter
@@ -28,7 +33,7 @@ class TelnetThread(Thread):
         def timer():
             time.sleep(0.0001) # Yield to other threads.
             return True
-        GObject.timeout_add(100, timer)
+        GObject.timeout_add(10, timer)
 
     def run(self):
         # Installing signal handlers is only allowed from the main thread.

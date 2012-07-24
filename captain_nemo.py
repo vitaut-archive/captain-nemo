@@ -78,12 +78,6 @@ class walk:
         self._depth -= 1
 
 if DEBUG:
-    # The nautilus_debug package is only imported in DEBUG mode to avoid
-    # dependency on twisted for normal use.
-    # Also there is a circular dependency between captain_nemo and
-    # nautilus_debug which uses the walk function. This is resolved by
-    # importing nautilus_debug after walk.
-    from nautilus_debug import TelnetThread, WidgetInspector
     logging.basicConfig(
         filename=os.path.join(os.path.dirname(__file__), 'captain_nemo.log'),
         level=logging.DEBUG)
@@ -183,6 +177,7 @@ class WindowAgent:
 
         if DEBUG:
             # Add the widget inspector.
+            from nautilus_debug import WidgetInspector
             child = window.get_child()
             inspector = WidgetInspector(window)
             window.remove(child)
@@ -283,8 +278,11 @@ class WidgetProvider(GObject.GObject, Nautilus.LocationWidgetProvider):
         self.window_agents = {}
         self.thread = None
         if DEBUG:
+            # The nautilus_debug package is only imported in DEBUG mode to
+            # avoid dependency on twisted for normal use.
+            from nautilus_debug import SSHThread
             with catch_all():
-                self.thread = TelnetThread(self.window_agents)
+                self.thread = SSHThread(self.window_agents)
                 self.thread.start()
 
     def get_widget(self, uri, window):
