@@ -96,6 +96,56 @@ def catch_all():
     except:
         logging.error(sys.exc_info()[1])
 
+class KeyboardShortcutsDialog(Gtk.Dialog):
+    def add_accel(self, data, accel_path, key, mods, changed):
+        label = Gtk.accelerator_get_label(key, mods)
+        self.accel_store.append([accel_path, label])
+
+    def create_shortcut_list(self):
+        self.accel_store = Gtk.ListStore(str, str)
+        self.accel_store.set_sort_column_id(0, Gtk.SortType.ASCENDING)
+        Gtk.AccelMap.foreach(None, self.add_accel)
+
+        view = Gtk.TreeView(self.accel_store)
+        view.set_rules_hint(True)
+
+        column = Gtk.TreeViewColumn("Action", Gtk.CellRendererText(), text=0)
+        column.set_sort_column_id(0)
+        view.append_column(column)
+
+        renderer = Gtk.CellRendererAccel()
+        renderer.set_property("editable", True)
+        renderer.connect("accel-edited", self.accel_edited)
+        column = Gtk.TreeViewColumn('Key', renderer, text=1)
+        column.set_sort_column_id(1)
+        view.append_column(column)
+        return view
+
+    def accel_edited(self, accel, path, key, mods, keycode):
+        Gtk.AccelMap.change_entry(self.accel_store[path][0], key, mods, False)
+        self.accel_store[path][1] = Gtk.accelerator_get_label(key, mods)
+
+    def __init__(self, parent):
+        Gtk.Dialog.__init__(self, "Keyboard Shortcuts", parent,
+            Gtk.DialogFlags.DESTROY_WITH_PARENT)
+
+        self.add_button('Close', Gtk.ResponseType.CLOSE)
+        self.set_default_size(800, 500)
+        self.set_border_width(5)
+
+        window = Gtk.ScrolledWindow()
+        window.add(self.create_shortcut_list())
+        window.set_border_width(5)
+        window.set_shadow_type(Gtk.ShadowType.IN)
+
+        content = self.get_content_area()
+        content.set_spacing(2)
+        content.pack_start(window, True, True, 0)
+
+# Keyboard shortcuts dialog is global because shortcuts apply for a
+# whole application, not to a single window.
+shortcuts_dialog = None
+
 # Redefines keyboard shortcuts and adds extra widgets.
 class WindowAgent:
     def __init__(self, window):
@@ -280,34 +330,16 @@ class WindowAgent:
         return True
 
     def show_keyboard_shortcuts_dialog(self, widget):
-        dialog = Gtk.Dialog('Keyboard Shortcuts', self.window,
-            Gtk.DialogFlags.DESTROY_WITH_PARENT)
-        dialog.add_button('Close', Gtk.ResponseType.CLOSE)
-        dialog.set_default_size(800, 400)
-        dialog.set_border_width(5)
-        accel_store = Gtk.TreeStore(str, str)
-        accel_store.set_sort_column_id(0, Gtk.SortType.ASCENDING)
-        def add_accel(data, accel_path, accel_key, accel_mods, changed):
-            label = Gtk.accelerator_get_label(accel_key, accel_mods)
-            accel_store.append(None, [accel_path, label])
-        Gtk.AccelMap.foreach(None, add_accel)
-        tree = Gtk.TreeView(accel_store)
-        column = Gtk.TreeViewColumn('Action', Gtk.CellRendererText(), text=0)
-        column.set_sort_column_id(0)
-        tree.append_column(column)
-        column = Gtk.TreeViewColumn('Key', Gtk.CellRendererText(), text=1)
-        column.set_sort_column_id(1)
-        tree.append_column(column)
-        window = Gtk.ScrolledWindow()
-        window.add(tree)
-        window.set_border_width(5)
-        window.set_shadow_type(Gtk.ShadowType.IN)
-        content = dialog.get_content_area()
-        content.set_spacing(2)
-        content.pack_start(window, True, True, 0)
-        dialog.show_all()
-        dialog.run()
-        dialog.destroy()
+        global shortcuts_dialog
+        if shortcuts_dialog:
+            shortcuts_dialog.present()
+            return
+        with catch_all():
+            shortcuts_dialog = KeyboardShortcutsDialog(self.window)
+            shortcuts_dialog.show_all()
+            shortcuts_dialog.run()
+            shortcuts_dialog.destroy()
+        shortcuts_dialog = None
 
 class WidgetProvider(GObject.GObject, Nautilus.LocationWidgetProvider):
     def __init__(self):
