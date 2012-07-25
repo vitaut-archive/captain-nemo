@@ -174,6 +174,12 @@ class WindowAgent:
                 elif name == 'Trash':
                     connect('F8', self.on_delete)
                     self.delete_menuitem = w
+                elif name == 'Edit':
+                    item = Gtk.MenuItem('Keyboard Shortcuts')
+                    w.add(item)
+                    item.show()
+                    item.connect('activate',
+                        self.show_keyboard_shortcuts_dialog)
 
         if DEBUG:
             # Add the widget inspector.
@@ -273,30 +279,53 @@ class WindowAgent:
             subprocess.Popen([GIT_CLIENT], cwd=location)
         return True
 
+    def show_keyboard_shortcuts_dialog(self, widget):
+        dialog = Gtk.Dialog('Keyboard Shortcuts', self.window,
+            Gtk.DialogFlags.DESTROY_WITH_PARENT)
+        dialog.add_button('Close', Gtk.ResponseType.CLOSE)
+        dialog.set_default_size(800, 400)
+        dialog.set_border_width(5)
+        accel_store = Gtk.TreeStore(str, str)
+        def add_accel(data, accel_path, accel_key, accel_mods, changed):
+            label = Gtk.accelerator_get_label(accel_key, accel_mods)
+            accel_store.append(None, [accel_path, label])
+        Gtk.AccelMap.foreach(None, add_accel)
+        tree = Gtk.TreeView(accel_store)
+        column = Gtk.TreeViewColumn('Action', Gtk.CellRendererText(), text=0)
+        tree.append_column(column)
+        column = Gtk.TreeViewColumn('Key', Gtk.CellRendererText(), text=1)
+        tree.append_column(column)
+        window = Gtk.ScrolledWindow()
+        window.add(tree)
+        window.set_border_width(5)
+        window.set_shadow_type(Gtk.ShadowType.IN)
+        content = dialog.get_content_area()
+        content.set_spacing(2)
+        content.pack_start(window, True, True, 0)
+        dialog.show_all()
+        dialog.run()
+        dialog.destroy()
+
 class WidgetProvider(GObject.GObject, Nautilus.LocationWidgetProvider):
     def __init__(self):
-        self.window_agents = {}
-        self.thread = None
-        if DEBUG:
-            # The nautilus_debug package is only imported in DEBUG mode to
-            # avoid dependency on twisted for normal use.
-            from nautilus_debug import SSHThread
-            with catch_all():
-                self.thread = SSHThread(self.window_agents)
-                self.thread.start()
+        with catch_all():
+            self._window_agents = {}
+            if DEBUG:
+                # The nautilus_debug package is only imported in DEBUG mode to
+                # avoid dependency on twisted for normal use.
+                from nautilus_debug import SSHThread
+                SSHThread(self._window_agents).start()
 
     def get_widget(self, uri, window):
-        try:
+        with catch_all():
             if uri == 'x-nautilus-desktop:///':
                 return None
-            agent = self.window_agents.get(window)
+            agent = self._window_agents.get(window)
             if agent != None:
                 return None
-            window.connect('destroy', lambda w: self.window_agents.pop(w))
+            window.connect('destroy', lambda w: self._window_agents.pop(w))
             agent = WindowAgent(window)
-            self.window_agents[window] = agent
-        except:
-            print traceback.print_exc()
+            self._window_agents[window] = agent
         return None
 
 class CompareMenuProvider(GObject.GObject, Nautilus.MenuProvider):

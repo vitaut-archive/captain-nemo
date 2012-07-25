@@ -11,17 +11,24 @@ from twisted.conch import manhole, manhole_ssh
 from captain_nemo import walk
 
 # A thread running an SSH server for remote access to a Python shell
-# in Nautilus.
+# in Nautilus. To connect to the server, use the following command:
+#   ssh -p 2222 nemo@localhost
+# The password is "nemo".
 class SSHThread(Thread):
     def __init__(self, window_agents):
         Thread.__init__(self)
         # Make sure this thread is a daemon not to prevent program exit.
         self.daemon = True
         realm = manhole_ssh.TerminalRealm()
-        namespace = {'agents': window_agents}
-        def getManhole(_):
-            return manhole.Manhole(namespace)
-        realm.chainedProtocolFactory.protocolFactory = getManhole
+        namespace = {
+          'Gtk': Gtk,
+          'walk': walk,
+          'widgets': lambda: walk(iter(window_agents).next()),
+          'window_agents': window_agents,
+          'window': lambda: iter(window_agents).next()
+        }
+        realm.chainedProtocolFactory.protocolFactory = \
+            lambda _: manhole.Manhole(namespace)
         p = portal.Portal(realm)
         p.registerChecker(
             checkers.InMemoryUsernamePasswordDatabaseDontUse(nemo='nemo'))
@@ -31,7 +38,7 @@ class SSHThread(Thread):
         # too. Workaround this by using a timer to run the interpreter
         # periodically.
         def timer():
-            time.sleep(0.0001) # Yield to other threads.
+            time.sleep(0.001) # Yield to other threads.
             return True
         GObject.timeout_add(10, timer)
 
@@ -57,8 +64,6 @@ class WidgetInspector(Gtk.Notebook):
         self.connect('popup-menu', self.popup_menu)
 
         self.append_page(self.create_widget_page(), Gtk.Label('Widgets'))
-        self.append_page(self.create_accelmap_page(),
-            Gtk.Label('Accelerator Map'))
         self.append_page(self.create_accelgroup_page(),
             Gtk.Label('Accelerator Group'))
         self.show_all()
@@ -79,22 +84,6 @@ class WidgetInspector(Gtk.Notebook):
         paned.set_size_request(0, 200)
         paned.set_position(250)
         return paned
-
-    def create_accelmap_page(self):
-        accel_store = Gtk.TreeStore(str, str)
-        def add_accel(data, accel_path, accel_key, accel_mods, changed):
-            label = Gtk.accelerator_get_label(accel_key, accel_mods)
-            accel_store.append(None, [label, accel_path])
-        Gtk.AccelMap.foreach(None, add_accel)
-        tree = Gtk.TreeView(accel_store)
-        tree.connect('button-press-event', self.on_button_press_event)
-        column = Gtk.TreeViewColumn('Key', Gtk.CellRendererText(), text=0)
-        tree.append_column(column)
-        column = Gtk.TreeViewColumn('Path', Gtk.CellRendererText(), text=1)
-        tree.append_column(column)
-        win = Gtk.ScrolledWindow()
-        win.add(tree)
-        return win
 
     def create_accelgroup_page(self):
         accel_group = Gtk.accel_groups_from_object(self.window)[0]
