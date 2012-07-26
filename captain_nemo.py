@@ -96,6 +96,19 @@ def catch_all():
     except:
         logging.error(sys.exc_info()[1])
 
+def set_orthodox_accels():
+    # Change the accelerator for the Open action from Ctrl+O to F3.
+    key, mods = Gtk.accelerator_parse("F3")
+    Gtk.AccelMap.change_entry(
+        "<Actions>/DirViewActions/Open", key, mods, True)
+    # Remove the accelerator from the 'SplitViewNextPane' action (F6).
+    Gtk.AccelMap.change_entry(
+        "<Actions>/ShellActions/SplitViewNextPane", 0, 0, True)
+    # Change the accelerator for the New Folder action from Ctrl+Shift+N to F7.
+    key, mods = Gtk.accelerator_parse('F7')
+    Gtk.AccelMap.change_entry(
+        "<Actions>/DirViewActions/New Folder", key, mods, True)
+
 class KeyboardShortcutsDialog(Gtk.Dialog):
     def add_accel(self, data, accel_path, key, mods, changed):
         label = Gtk.accelerator_get_label(key, mods)
@@ -106,41 +119,79 @@ class KeyboardShortcutsDialog(Gtk.Dialog):
         self.accel_store.set_sort_column_id(0, Gtk.SortType.ASCENDING)
         Gtk.AccelMap.foreach(None, self.add_accel)
 
-        view = Gtk.TreeView(self.accel_store)
-        view.set_rules_hint(True)
+        self.view = Gtk.TreeView(self.accel_store)
+        self.view.set_rules_hint(True)
 
         column = Gtk.TreeViewColumn("Action", Gtk.CellRendererText(), text=0)
         column.set_sort_column_id(0)
-        view.append_column(column)
+        self.view.append_column(column)
+
+        # Unselecting all when the view loses focus solves the following problem:
+        # when the user clicks on an accelerator in a selected row the keyboard
+        # input is not captured by the view and the accelerator cannot be changed.
+        self.view.connect("focus-out-event",
+            lambda *args: self.view.get_selection().unselect_all())
 
         renderer = Gtk.CellRendererAccel()
         renderer.set_property("editable", True)
         renderer.connect("accel-edited", self.accel_edited)
         column = Gtk.TreeViewColumn('Key', renderer, text=1)
         column.set_sort_column_id(1)
-        view.append_column(column)
-        return view
+        self.view.append_column(column)
+
+    def update_shortcut_list(self):
+        for row in self.accel_store:
+            known, key = Gtk.AccelMap.lookup_entry(row[0])
+            if not known: continue
+            row[1] = Gtk.accelerator_get_label(key.accel_key, key.accel_mods)
 
     def accel_edited(self, accel, path, key, mods, keycode):
-        Gtk.AccelMap.change_entry(self.accel_store[path][0], key, mods, False)
-        self.accel_store[path][1] = Gtk.accelerator_get_label(key, mods)
+        row = self.accel_store[path]
+        if Gtk.AccelMap.change_entry(row[0], key, mods, True):
+            row[1] = Gtk.accelerator_get_label(key, mods)
 
-    def __init__(self, parent):
+    def use_default(self, widget):
+        with catch_all():
+            for path, key in self.default_accels.items():
+                Gtk.AccelMap.change_entry(path, key[0], key[1], True)
+            self.update_shortcut_list()
+
+    def use_orthodox(self, widget):
+        with catch_all():
+            set_orthodox_accels()
+            self.update_shortcut_list()
+
+    def __init__(self, parent, default_accels):
         Gtk.Dialog.__init__(self, "Keyboard Shortcuts", parent,
-            Gtk.DialogFlags.DESTROY_WITH_PARENT)
+            Gtk.DialogFlags.DESTROY_WITH_PARENT, border_width=5)
+        self.default_accels = default_accels
 
-        self.add_button('Close', Gtk.ResponseType.CLOSE)
+        self.add_button("Close", Gtk.ResponseType.CLOSE)
         self.set_default_size(800, 500)
-        self.set_border_width(5)
-
-        window = Gtk.ScrolledWindow()
-        window.add(self.create_shortcut_list())
-        window.set_border_width(5)
-        window.set_shadow_type(Gtk.ShadowType.IN)
 
         content = self.get_content_area()
         content.set_spacing(2)
-        content.pack_start(window, True, True, 0)
+
+        hbox = Gtk.Box()
+        content.pack_start(hbox, True, True, 0)
+
+        window = Gtk.ScrolledWindow(
+            border_width=5, shadow_type=Gtk.ShadowType.IN)
+        self.create_shortcut_list()
+        window.add(self.view)
+        hbox.pack_start(window, True, True, 0)
+
+        vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL,
+            border_width=5, spacing=10)
+        hbox.pack_start(vbox, False, False, 0)
+
+        button = Gtk.Button(label="Use Default")
+        button.connect("clicked", self.use_default)
+        vbox.pack_start(button, False, False, 0)
+
+        button = Gtk.Button(label="Use Orthodox")
+        button.connect("clicked", self.use_orthodox)
+        vbox.pack_start(button, False, False, 0)
 
 # Keyboard shortcuts dialog is global because shortcuts apply for a
 # whole application, not to a single window.
@@ -148,8 +199,9 @@ shortcuts_dialog = None
 
 # Redefines keyboard shortcuts and adds extra widgets.
 class WindowAgent:
-    def __init__(self, window):
+    def __init__(self, window, default_accels):
         self.window = window
+        self.default_accels = default_accels
         self.loc_entry1 = self.loc_entry2 = None
 
         # Find the main paned widget and the menubar.
@@ -184,17 +236,6 @@ class WindowAgent:
         else:
             print 'Main paned not found'
 
-        # Remove the accelerator from the 'Show Hide Extra Pane' action (F3).
-        Gtk.AccelMap.change_entry(
-            '<Actions>/ShellActions/Show Hide Extra Pane', 0, 0, False)
-        # Remove the accelerator from the 'SplitViewNextPane' action (F6).
-        Gtk.AccelMap.change_entry(
-            '<Actions>/ShellActions/SplitViewNextPane', 0, 0, False)
-        # Change the accelerator for the Open action from Ctrl+O to F3.
-        key, mods = Gtk.accelerator_parse('F3')
-        Gtk.AccelMap.change_entry(
-            '<Actions>/DirViewActions/Open', key, mods, False)
-
         accel_group = Gtk.accel_groups_from_object(window)[0]
 
         def connect(accel, func):
@@ -204,6 +245,7 @@ class WindowAgent:
         connect('F4', self.on_edit)
 
         if self.loc_entry1 != None and self.loc_entry2 != None:
+            # TODO: look how nautilus-open-terminal work
             connect('<Ctrl>O', self.on_terminal)
             connect('<Ctrl>G', self.on_git)
         else:
@@ -218,9 +260,6 @@ class WindowAgent:
                 elif name == 'Move to next pane':
                     connect('F6', self.on_move)
                     self.move_menuitem = w
-                elif name == 'New Folder':
-                    connect('F7', self.on_mkdir)
-                    self.mkdir_menuitem = w
                 elif name == 'Trash':
                     connect('F8', self.on_delete)
                     self.delete_menuitem = w
@@ -283,11 +322,6 @@ class WindowAgent:
                 self.move_menuitem.activate()
         return True
 
-    def on_mkdir(self, accel_group, acceleratable, keyval, modifier):
-        with catch_all():
-            self.mkdir_menuitem.activate()
-        return True
-
     def on_delete(self, accel_group, acceleratable, keyval, modifier):
         with catch_all():
             if self.show_dialog('Delete',
@@ -335,7 +369,8 @@ class WindowAgent:
             shortcuts_dialog.present()
             return
         with catch_all():
-            shortcuts_dialog = KeyboardShortcutsDialog(self.window)
+            shortcuts_dialog = KeyboardShortcutsDialog(
+                self.window, self.default_accels)
             shortcuts_dialog.show_all()
             shortcuts_dialog.run()
             shortcuts_dialog.destroy()
@@ -344,6 +379,7 @@ class WindowAgent:
 class WidgetProvider(GObject.GObject, Nautilus.LocationWidgetProvider):
     def __init__(self):
         with catch_all():
+            self._default_accels = None
             self._window_agents = {}
             if DEBUG:
                 # The nautilus_debug package is only imported in DEBUG mode to
@@ -351,15 +387,24 @@ class WidgetProvider(GObject.GObject, Nautilus.LocationWidgetProvider):
                 from nautilus_debug import SSHThread
                 SSHThread(self._window_agents).start()
 
+    def add_accel(self, data, accel_path, key, mods, changed):
+        self._default_accels[accel_path] = (key, mods)
+
     def get_widget(self, uri, window):
         with catch_all():
-            if uri == 'x-nautilus-desktop:///':
+            # Accelerator map is empty when WidgetProvider.__init__ is called
+            # so get default accelerators the first time get_widget is called.
+            if self._default_accels == None:
+                self._default_accels = {}
+                Gtk.AccelMap.foreach(None, self.add_accel)
+
+            if uri == "x-nautilus-desktop:///":
                 return None
             agent = self._window_agents.get(window)
             if agent != None:
                 return None
-            window.connect('destroy', lambda w: self._window_agents.pop(w))
-            agent = WindowAgent(window)
+            window.connect("destroy", lambda w: self._window_agents.pop(w))
+            agent = WindowAgent(window, self._default_accels)
             self._window_agents[window] = agent
         return None
 
