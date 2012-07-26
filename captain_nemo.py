@@ -41,6 +41,7 @@ DIFF = 'meld'
 GIT_CLIENT = 'gitg'
 TERMINAL_KEY = '/desktop/gnome/applications/terminal/exec'
 EDITOR = 'gedit'
+ACCEL_FILE_NAME = os.path.join(os.path.dirname(__file__), "captain_nemo.accel")
 DEBUG = False
 
 # This class allows depth-first traversal of a widget tree using an iterator.
@@ -144,11 +145,14 @@ class KeyboardShortcutsDialog(Gtk.Dialog):
             known, key = Gtk.AccelMap.lookup_entry(row[0])
             if not known: continue
             row[1] = Gtk.accelerator_get_label(key.accel_key, key.accel_mods)
+        Gtk.AccelMap.save(ACCEL_FILE_NAME)
 
     def accel_edited(self, accel, path, key, mods, keycode):
-        row = self.accel_store[path]
-        if Gtk.AccelMap.change_entry(row[0], key, mods, True):
-            row[1] = Gtk.accelerator_get_label(key, mods)
+        with catch_all():
+            row = self.accel_store[path]
+            if Gtk.AccelMap.change_entry(row[0], key, mods, True):
+                row[1] = Gtk.accelerator_get_label(key, mods)
+                Gtk.AccelMap.save(ACCEL_FILE_NAME)
 
     def use_default(self, widget):
         with catch_all():
@@ -397,6 +401,8 @@ class WidgetProvider(GObject.GObject, Nautilus.LocationWidgetProvider):
             if self._default_accels == None:
                 self._default_accels = {}
                 Gtk.AccelMap.foreach(None, self.add_accel)
+                if os.path.exists(ACCEL_FILE_NAME):
+                    Gtk.AccelMap.load(ACCEL_FILE_NAME)
 
             if uri == "x-nautilus-desktop:///":
                 return None
