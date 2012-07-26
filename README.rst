@@ -7,11 +7,17 @@ Captain Nemo is an extension which converts Nautilus into a two-panel
 Features
 --------
 
+* Editable keyboard shortcuts with two presets (Default and Orthodox):
+
+.. image:: https://github.com/vitaut/captain-nemo/raw/master/img/keyboard-shortcuts-menu.png
+
+.. image:: https://github.com/vitaut/captain-nemo/raw/master/img/keyboard-shortcuts-dialog.png
+
 * Two-panel view:
 
 .. image:: https://github.com/vitaut/captain-nemo/raw/master/img/two-panel-view.png
 
-* Keyboard shortcuts:
+* Keyboard shortcuts in Orthodox mode:
 
 ======  ==========================================================
 Key     Operation
