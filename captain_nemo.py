@@ -154,14 +154,20 @@ class KeyboardShortcutsDialog(Gtk.Dialog):
                 row[1] = Gtk.accelerator_get_label(key, mods)
                 Gtk.AccelMap.save(ACCEL_FILE_NAME)
 
+    def set_default_accels(self):
+        for path, key in self.default_accels.items():
+            Gtk.AccelMap.change_entry(path, key[0], key[1], True)
+
     def use_default(self, widget):
         with catch_all():
-            for path, key in self.default_accels.items():
-                Gtk.AccelMap.change_entry(path, key[0], key[1], True)
+            self.set_default_accels()
             self.update_shortcut_list()
 
     def use_orthodox(self, widget):
         with catch_all():
+            # Set default accelerators first to discard any changes,
+            # then apply orthodox changes on top.
+            self.set_default_accels()
             set_orthodox_accels()
             self.update_shortcut_list()
 
