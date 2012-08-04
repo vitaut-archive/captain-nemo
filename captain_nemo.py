@@ -111,17 +111,28 @@ def set_orthodox_accels():
         "<Actions>/DirViewActions/New Folder", key, mods, True)
 
 class KeyboardShortcutsDialog(Gtk.Dialog):
-    def add_accel(self, data, accel_path, key, mods, changed):
-        label = Gtk.accelerator_get_label(key, mods)
-        self.accel_store.append([accel_path, label])
-
     def create_shortcut_list(self):
-        self.accel_store = Gtk.ListStore(str, str)
+        self.accel_store = Gtk.TreeStore(str, str, bool)
         self.accel_store.set_sort_column_id(0, Gtk.SortType.ASCENDING)
-        Gtk.AccelMap.foreach(None, self.add_accel)
+
+        iters = {}
+        def add_accel(data, accel_path, key, mods, changed):
+            label = Gtk.accelerator_get_label(key, mods)
+            split_path = accel_path.split("/")
+            parent = None
+            for i in range(len(split_path) - 1):
+                subpath = "/".join(split_path[:i + 1])
+                iter = iters.get(subpath)
+                if iter == None:
+                    iter = self.accel_store.append(parent, [split_path[i], "", False])
+                    iters[subpath] = iter
+                parent = iter
+            self.accel_store.append(parent, [split_path[-1], label, True])
+        Gtk.AccelMap.foreach(None, add_accel)
 
         self.view = Gtk.TreeView(self.accel_store)
         self.view.set_rules_hint(True)
+        self.view.expand_all()
 
         column = Gtk.TreeViewColumn("Action", Gtk.CellRendererText(), text=0)
         column.set_sort_column_id(0)
@@ -136,22 +147,44 @@ class KeyboardShortcutsDialog(Gtk.Dialog):
         renderer = Gtk.CellRendererAccel()
         renderer.set_property("editable", True)
         renderer.connect("accel-edited", self.accel_edited)
-        column = Gtk.TreeViewColumn('Key', renderer, text=1)
+        column = Gtk.TreeViewColumn("Key", renderer, text=1, editable=2)
         column.set_sort_column_id(1)
         self.view.append_column(column)
 
-    def update_shortcut_list(self):
-        for row in self.accel_store:
-            known, key = Gtk.AccelMap.lookup_entry(row[0])
-            if not known: continue
-            row[1] = Gtk.accelerator_get_label(key.accel_key, key.accel_mods)
+    # Converts tree iterator to accelerator path.
+    def convert_tree_iter_to_accel_path(self, i):
+        items = []
+        while i != None:
+            items.insert(0, self.accel_store.get_value(i, 0))
+            i = self.accel_store.iter_parent(i)
+        return "/".join(items)
+
+    # Converts tree path to accelerator path.
+    def convert_tree_path_to_accel_path(self, path):
+        return self.convert_tree_iter_to_accel_path(
+            self.accel_store.get_iter(path))
+
+    def do_update_accel_store(self, iter):
+        while iter != None:
+            if self.accel_store.iter_has_child(iter):
+                self.do_update_accel_store(self.accel_store.iter_children(iter))
+            else:
+                known, key = Gtk.AccelMap.lookup_entry(
+                    self.convert_tree_iter_to_accel_path(iter))
+                if known:
+                    self.accel_store[iter][1] = Gtk.accelerator_get_label(
+                        key.accel_key, key.accel_mods)
+            iter = self.accel_store.iter_next(iter)
+
+    def update_accel_store(self):
+        self.do_update_accel_store(self.accel_store.get_iter_first())
         Gtk.AccelMap.save(ACCEL_FILE_NAME)
 
     def accel_edited(self, accel, path, key, mods, keycode):
         with catch_all():
-            row = self.accel_store[path]
-            if Gtk.AccelMap.change_entry(row[0], key, mods, True):
-                row[1] = Gtk.accelerator_get_label(key, mods)
+            accel_path = self.convert_tree_path_to_accel_path(path)
+            if Gtk.AccelMap.change_entry(accel_path, key, mods, True):
+                self.accel_store[path][1] = Gtk.accelerator_get_label(key, mods)
                 Gtk.AccelMap.save(ACCEL_FILE_NAME)
 
     def set_default_accels(self):
@@ -161,7 +194,7 @@ class KeyboardShortcutsDialog(Gtk.Dialog):
     def use_default(self, widget):
         with catch_all():
             self.set_default_accels()
-            self.update_shortcut_list()
+            self.update_accel_store()
 
     def use_orthodox(self, widget):
         with catch_all():
@@ -169,7 +202,7 @@ class KeyboardShortcutsDialog(Gtk.Dialog):
             # then apply orthodox changes on top.
             self.set_default_accels()
             set_orthodox_accels()
-            self.update_shortcut_list()
+            self.update_accel_store()
 
     def __init__(self, parent, default_accels):
         Gtk.Dialog.__init__(self, "Keyboard Shortcuts", parent,
@@ -274,7 +307,8 @@ class WindowAgent:
                     connect('F8', self.on_delete)
                     self.delete_menuitem = w
                 elif name == 'Edit':
-                    item = Gtk.MenuItem('Keyboard Shortcuts')
+                    item = Gtk.MenuItem(
+                        "_Keyboard Shortcuts...", use_underline=True)
                     w.add(item)
                     item.show()
                     item.connect('activate',
