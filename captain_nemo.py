@@ -43,6 +43,7 @@ TERMINAL_KEY = '/desktop/gnome/applications/terminal/exec'
 EDITOR = 'gedit'
 ACCEL_FILE_NAME = os.path.join(os.path.dirname(__file__), "captain_nemo.accel")
 DEBUG = False
+SHOW_EXTRA_PANE = False
 
 # This class allows depth-first traversal of a widget tree using an iterator.
 class walk:
@@ -263,7 +264,7 @@ class WindowAgent:
                 menubar = w
                 walker.skip_children()
 
-        if menubar != None:
+        if menubar != None and SHOW_EXTRA_PANE:
             # Show extra pane.
             for w in walk(menubar):
                 name = w.get_name()
