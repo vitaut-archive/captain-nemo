@@ -124,7 +124,8 @@ class KeyboardShortcutsDialog(Gtk.Dialog):
                 subpath = "/".join(split_path[:i + 1])
                 iter = iters.get(subpath)
                 if iter == None:
-                    iter = self.accel_store.append(parent, [split_path[i], "", False])
+                    iter = self.accel_store.append(
+                        parent, [split_path[i], "", False])
                     iters[subpath] = iter
                 parent = iter
             self.accel_store.append(parent, [split_path[-1], label, True])
