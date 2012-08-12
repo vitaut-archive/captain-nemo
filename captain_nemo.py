@@ -286,6 +286,8 @@ class WindowAgent:
     def __init__(self, window):
         self.window = window
         self.loc_entry1 = self.loc_entry2 = None
+        self.menubar = None
+        self.menu_items = {}
 
         # Find the main paned widget and the menubar.
         self.main_paned = menubar = None
@@ -299,19 +301,8 @@ class WindowAgent:
                 self.main_paned = p
                 walker.skip_children()
             if name == 'MenuBar':
-                menubar = w
+                self.menubar = w
                 walker.skip_children()
-
-        if menubar != None:
-            if SHOW_EXTRA_PANE:
-                # Show extra pane.
-                for w in walk(menubar):
-                    name = w.get_name()
-                    if name == 'Show Hide Extra Pane':
-                        w.activate()
-                        break
-        else:
-            print 'Menu bar not found'
 
         if self.main_paned != None:
             # Find location entries.
@@ -327,6 +318,9 @@ class WindowAgent:
             accel_group.connect(key, mods, Gtk.AccelFlags.VISIBLE, func)
 
         connect('F4', self.on_edit)
+        connect('F5', self.on_copy)
+        connect('F6', self.on_move)
+        connect('F8', self.on_delete)
 
         if self.loc_entry1 != None:
             # TODO: look how nautilus-open-terminal work
@@ -335,18 +329,11 @@ class WindowAgent:
         else:
             print 'Location entries not found'
 
-        if menubar != None:
-            for w in walk(menubar):
+        if self.menubar != None:
+            for w in walk(self.menubar):
                 name = w.get_name()
-                if name == 'Copy to next pane':
-                    connect('F5', self.on_copy)
-                    self.copy_menuitem = w
-                elif name == 'Move to next pane':
-                    connect('F6', self.on_move)
-                    self.move_menuitem = w
-                elif name == 'Trash':
-                    connect('F8', self.on_delete)
-                    self.delete_menuitem = w
+                if SHOW_EXTRA_PANE and name == 'Show Hide Extra Pane':
+                    w.activate()
                 elif name == 'Edit':
                     item = Gtk.MenuItem(
                         "_Keyboard Shortcuts...", use_underline=True)
@@ -354,6 +341,8 @@ class WindowAgent:
                     item.show()
                     item.connect('activate',
                         self.show_keyboard_shortcuts_dialog)
+        else:
+            print 'Menu bar not found'
 
         if DEBUG:
             # Add the widget inspector.
@@ -366,6 +355,18 @@ class WindowAgent:
             paned.pack2(inspector, False, False)
             paned.show()
             window.add(paned)
+
+    def get_menu_item(self, name):
+        item = self.menu_items.get(name)
+        if item == None and self.menubar != None:
+            for w in walk(self.menubar):
+                if w.get_name() == name:
+                    item = w
+                    self.menu_items[name] = item
+                    break
+        if item != None and self.copy_menuitem.get_sensitive():
+            return item
+        return None
 
     def find_loc_entry(self, widget):
         for w in walk(widget):
@@ -395,23 +396,26 @@ class WindowAgent:
 
     def on_copy(self, accel_group, acceleratable, keyval, modifier):
         with catch_all():
-            if self.show_dialog('Copy',
+            item = self.get_menu_item('Copy to next pane')
+            if item != None and self.show_dialog('Copy',
                 'Do you want to copy selected files/directories?'):
-                self.copy_menuitem.activate()
+                item.activate()
         return True
 
     def on_move(self, accel_group, acceleratable, keyval, modifier):
         with catch_all():
-            if self.show_dialog('Move',
+            item = self.get_menu_item('Move to next pane')
+            if item != None and self.show_dialog('Move',
                 'Do you want to move selected files/directories?'):
-                self.move_menuitem.activate()
+                item.activate()
         return True
 
     def on_delete(self, accel_group, acceleratable, keyval, modifier):
         with catch_all():
-            if self.show_dialog('Delete',
+            item = self.get_menu_item('Trash')
+            if self.delete_menuitem != None and self.show_dialog('Delete',
                 'Do you want to move selected files/directories to trash?'):
-                self.delete_menuitem.activate()
+                item.activate()
         return True
 
     def on_edit(self, accel_group, acceleratable, keyval, modifier):
