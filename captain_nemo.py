@@ -473,12 +473,9 @@ class WidgetProvider(GObject.GObject, Nautilus.LocationWidgetProvider):
 
     def get_widget(self, uri, window):
         with catch_all():
-            # Accelerator map is empty when WidgetProvider.__init__ is called
-            # so get default accelerators the first time get_widget is called.
             if not self._loaded_accels:
                 self._loaded_accels = True
                 load_accels(ACCEL_FILE_NAME)
-
             if uri == "x-nautilus-desktop:///":
                 return None
             agent = self._window_agents.get(window)
