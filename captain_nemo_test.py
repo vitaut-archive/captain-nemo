@@ -99,5 +99,15 @@ class AccelTest(unittest.TestCase):
         self.assertEqual('q', ACCELS[TEST_ACCEL_PATH].current)
         self.assertEqual('t', ACCELS[TEST_ACCEL_PATH].default)
 
+    def test_load_save_accel_with_space(self):
+        path = '<Actions>/Accel With Space'
+        change_accel(path, 'a')
+        self.assertEqual('a', ACCELS[path].current)
+        save_accels('test.accel')
+        change_accel(path, 'b')
+        self.assertEqual('b', ACCELS[path].current)
+        load_accels('test.accel')
+        self.assertEqual('a', ACCELS[path].current)
+
 if __name__ == '__main__':
     unittest.main()

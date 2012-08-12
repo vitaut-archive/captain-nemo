@@ -114,7 +114,7 @@ def load_accels(filename):
     set_default_accels()
     with open(filename) as f:
         for line in f:
-            path, current, default = line.rstrip().split(" ")
+            path, current, default = line.rstrip("\n").split(" ")
             path = urllib.unquote(path)
             key, mods = Gtk.accelerator_parse(current)
             Gtk.AccelMap.change_entry(path, key, mods, True)
