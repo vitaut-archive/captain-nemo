@@ -115,6 +115,7 @@ def load_accels(filename):
     with open(filename) as f:
         for line in f:
             path, current, default = line.rstrip().split(" ")
+            path = urllib.unquote(path)
             key, mods = Gtk.accelerator_parse(current)
             Gtk.AccelMap.change_entry(path, key, mods, True)
             ACCELS[path] = AccelInfo(current, default)
@@ -123,7 +124,8 @@ def load_accels(filename):
 def save_accels(filename):
     with open(filename, "w") as f:
         for path, info in ACCELS.items():
-            f.write("%s %s %s\n" % (path, info.current, info.default))
+            f.write("%s %s %s\n" %
+                (urllib.quote(path), info.current, info.default))
 
 if DEBUG:
     logging.basicConfig(
@@ -146,16 +148,12 @@ def catch_all():
 
 def set_orthodox_accels():
     # Change the accelerator for the Open action from Ctrl+O to F3.
-    key, mods = Gtk.accelerator_parse("F3")
-    Gtk.AccelMap.change_entry(
-        "<Actions>/DirViewActions/Open", key, mods, True)
+    change_accel("<Actions>/ShellActions/Show Hide Extra Pane", "")
+    change_accel("<Actions>/DirViewActions/Open", "F3")
     # Remove the accelerator from the 'SplitViewNextPane' action (F6).
-    Gtk.AccelMap.change_entry(
-        "<Actions>/ShellActions/SplitViewNextPane", 0, 0, True)
+    change_accel("<Actions>/ShellActions/SplitViewNextPane", "")
     # Change the accelerator for the New Folder action from Ctrl+Shift+N to F7.
-    key, mods = Gtk.accelerator_parse('F7')
-    Gtk.AccelMap.change_entry(
-        "<Actions>/DirViewActions/New Folder", key, mods, True)
+    change_accel("<Actions>/DirViewActions/New Folder", "F7")
 
 class KeyboardShortcutsDialog(Gtk.Dialog):
     def create_shortcut_list(self):
