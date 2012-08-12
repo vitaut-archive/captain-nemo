@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 from gi.repository import Gtk
-from captain_nemo import walk
+from captain_nemo import walk, ACCELS, change_accel, load_accels, save_accels
 import unittest
 
 class WalkTest(unittest.TestCase):
@@ -68,6 +68,36 @@ class WalkTest(unittest.TestCase):
         self.assertEqual(tree_str,
             'GtkWindow 0 GtkBox 1 GtkPaned 2 GtkButton 3 ' +
             'GtkMenuBar 2 GtkMenuItem 3 GtkAccelLabel 4 GtkMenu 4 ')
+
+TEST_ACCEL_PATH = '<Actions>/Test'
+
+class AccelTest(unittest.TestCase):
+    def setUp(self):
+        self.window = Gtk.Window()
+        key, mods = Gtk.accelerator_parse('T')
+        Gtk.AccelMap.change_entry(TEST_ACCEL_PATH, key, mods, True)
+
+    def test_0_default_accels_empty(self):
+        self.assertEqual({}, ACCELS)
+
+    def test_change_accel(self):
+        known, key = Gtk.AccelMap.lookup_entry(TEST_ACCEL_PATH)
+        self.assertTrue(known)
+        self.assertEqual('t',
+            Gtk.accelerator_name(key.accel_key, key.accel_mods))
+        change_accel(TEST_ACCEL_PATH, 'q')
+        self.assertEqual('q', ACCELS[TEST_ACCEL_PATH].current)
+        self.assertEqual('t', ACCELS[TEST_ACCEL_PATH].default)
+
+    def test_load_save_accels(self):
+        change_accel(TEST_ACCEL_PATH, 'q')
+        self.assertEqual('q', ACCELS[TEST_ACCEL_PATH].current)
+        save_accels('test.accel')
+        change_accel(TEST_ACCEL_PATH, 'p')
+        self.assertEqual('p', ACCELS[TEST_ACCEL_PATH].current)
+        load_accels('test.accel')
+        self.assertEqual('q', ACCELS[TEST_ACCEL_PATH].current)
+        self.assertEqual('t', ACCELS[TEST_ACCEL_PATH].default)
 
 if __name__ == '__main__':
     unittest.main()

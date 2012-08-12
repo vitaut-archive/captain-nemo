@@ -79,6 +79,52 @@ class walk:
                 yield w
         self._depth -= 1
 
+class AccelInfo:
+    def __init__(self, current, default):
+        self.current = current
+        self.default = default
+
+# Map from accel path to info.
+ACCELS = {}
+
+# Changes the accelerator associated with a path recording
+# the new value in ACCELS.
+def change_accel(accel_path, accel_name):
+    key, mods = Gtk.accelerator_parse(accel_name)
+    info = ACCELS.get(accel_path)
+    if info == None:
+        known, entry = Gtk.AccelMap.lookup_entry(accel_path)
+        name = Gtk.accelerator_name(entry.accel_key, entry.accel_mods)
+        info = AccelInfo(name, name)
+        ACCELS[accel_path] = info
+    if Gtk.AccelMap.change_entry(accel_path, key, mods, True):
+        info.current = accel_name
+        return True
+    return False
+
+# Sets the default accelerators.
+def set_default_accels():
+    for path, info in ACCELS.items():
+        key, mods = Gtk.accelerator_parse(info.default)
+        Gtk.AccelMap.change_entry(path, key, mods, True)
+    ACCELS.clear()
+
+# Loads accelerators from a file.
+def load_accels(filename):
+    set_default_accels()
+    with open(filename) as f:
+        for line in f:
+            path, current, default = line.rstrip().split(" ")
+            key, mods = Gtk.accelerator_parse(current)
+            Gtk.AccelMap.change_entry(path, key, mods, True)
+            ACCELS[path] = AccelInfo(current, default)
+
+# Saves accelerators to a file.
+def save_accels(filename):
+    with open(filename, "w") as f:
+        for path, info in ACCELS.items():
+            f.write("%s %s %s\n" % (path, info.current, info.default))
+
 if DEBUG:
     logging.basicConfig(
         filename=os.path.join(os.path.dirname(__file__), 'captain_nemo.log'),
@@ -180,36 +226,31 @@ class KeyboardShortcutsDialog(Gtk.Dialog):
 
     def update_accel_store(self):
         self.do_update_accel_store(self.accel_store.get_iter_first())
-        Gtk.AccelMap.save(ACCEL_FILE_NAME)
+        save_accels(ACCEL_FILE_NAME)
 
     def accel_edited(self, accel, path, key, mods, keycode):
         with catch_all():
             accel_path = self.convert_tree_path_to_accel_path(path)
-            if Gtk.AccelMap.change_entry(accel_path, key, mods, True):
+            if change_accel(accel_path, Gtk.accelerator_name(key, mods)):
                 self.accel_store[path][1] = Gtk.accelerator_get_label(key, mods)
-                Gtk.AccelMap.save(ACCEL_FILE_NAME)
-
-    def set_default_accels(self):
-        for path, key in self.default_accels.items():
-            Gtk.AccelMap.change_entry(path, key[0], key[1], True)
+                save_accels(ACCEL_FILE_NAME)
 
     def use_default(self, widget):
         with catch_all():
-            self.set_default_accels()
+            set_default_accels()
             self.update_accel_store()
 
     def use_orthodox(self, widget):
         with catch_all():
             # Set default accelerators first to discard any changes,
             # then apply orthodox changes on top.
-            self.set_default_accels()
+            set_default_accels()
             set_orthodox_accels()
             self.update_accel_store()
 
-    def __init__(self, parent, default_accels):
+    def __init__(self, parent):
         Gtk.Dialog.__init__(self, "Keyboard Shortcuts", parent,
             Gtk.DialogFlags.DESTROY_WITH_PARENT, border_width=5)
-        self.default_accels = default_accels
 
         self.add_button("Close", Gtk.ResponseType.CLOSE)
         self.set_default_size(800, 500)
@@ -244,9 +285,8 @@ shortcuts_dialog = None
 
 # Redefines keyboard shortcuts and adds extra widgets.
 class WindowAgent:
-    def __init__(self, window, default_accels):
+    def __init__(self, window):
         self.window = window
-        self.default_accels = default_accels
         self.loc_entry1 = self.loc_entry2 = None
 
         # Find the main paned widget and the menubar.
@@ -264,13 +304,14 @@ class WindowAgent:
                 menubar = w
                 walker.skip_children()
 
-        if menubar != None and SHOW_EXTRA_PANE:
-            # Show extra pane.
-            for w in walk(menubar):
-                name = w.get_name()
-                if name == 'Show Hide Extra Pane':
-                    w.activate()
-                    break
+        if menubar != None:
+            if SHOW_EXTRA_PANE:
+                # Show extra pane.
+                for w in walk(menubar):
+                    name = w.get_name()
+                    if name == 'Show Hide Extra Pane':
+                        w.activate()
+                        break
         else:
             print 'Menu bar not found'
 
@@ -289,7 +330,7 @@ class WindowAgent:
 
         connect('F4', self.on_edit)
 
-        if self.loc_entry1 != None and self.loc_entry2 != None:
+        if self.loc_entry1 != None:
             # TODO: look how nautilus-open-terminal work
             connect('<Ctrl>O', self.on_terminal)
             connect('<Ctrl>G', self.on_git)
@@ -415,8 +456,7 @@ class WindowAgent:
             shortcuts_dialog.present()
             return
         with catch_all():
-            shortcuts_dialog = KeyboardShortcutsDialog(
-                self.window, self.default_accels)
+            shortcuts_dialog = KeyboardShortcutsDialog(self.window)
             shortcuts_dialog.show_all()
             shortcuts_dialog.run()
             shortcuts_dialog.destroy()
@@ -425,7 +465,7 @@ class WindowAgent:
 class WidgetProvider(GObject.GObject, Nautilus.LocationWidgetProvider):
     def __init__(self):
         with catch_all():
-            self._default_accels = None
+            self._loaded_accels = False
             self._window_agents = {}
             if DEBUG:
                 # The nautilus_debug package is only imported in DEBUG mode to
@@ -433,18 +473,13 @@ class WidgetProvider(GObject.GObject, Nautilus.LocationWidgetProvider):
                 from nautilus_debug import SSHThread
                 SSHThread(self._window_agents).start()
 
-    def add_accel(self, data, accel_path, key, mods, changed):
-        self._default_accels[accel_path] = (key, mods)
-
     def get_widget(self, uri, window):
         with catch_all():
             # Accelerator map is empty when WidgetProvider.__init__ is called
             # so get default accelerators the first time get_widget is called.
-            if self._default_accels == None:
-                self._default_accels = {}
-                Gtk.AccelMap.foreach(None, self.add_accel)
-                if os.path.exists(ACCEL_FILE_NAME):
-                    Gtk.AccelMap.load(ACCEL_FILE_NAME)
+            if not self._loaded_accels:
+                self._loaded_accels = True
+                load_accels(ACCEL_FILE_NAME)
 
             if uri == "x-nautilus-desktop:///":
                 return None
@@ -452,7 +487,7 @@ class WidgetProvider(GObject.GObject, Nautilus.LocationWidgetProvider):
             if agent != None:
                 return None
             window.connect("destroy", lambda w: self._window_agents.pop(w))
-            agent = WindowAgent(window, self._default_accels)
+            agent = WindowAgent(window)
             self._window_agents[window] = agent
         return None
 
