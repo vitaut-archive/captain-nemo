@@ -413,7 +413,7 @@ class WindowAgent:
     def on_delete(self, accel_group, acceleratable, keyval, modifier):
         with catch_all():
             item = self.get_menu_item('Trash')
-            if self.delete_menuitem != None and self.show_dialog('Delete',
+            if item != None and self.show_dialog('Delete',
                 'Do you want to move selected files/directories to trash?'):
                 item.activate()
         return True
