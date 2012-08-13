@@ -364,7 +364,7 @@ class WindowAgent:
                     item = w
                     self.menu_items[name] = item
                     break
-        if item != None and self.copy_menuitem.get_sensitive():
+        if item != None and item.get_sensitive():
             return item
         return None
 
