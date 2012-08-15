@@ -156,6 +156,37 @@ def set_orthodox_accels():
     change_accel("<Actions>/DirViewActions/New Folder", "F7")
 
 class KeyboardShortcutsDialog(Gtk.Dialog):
+    def __init__(self, parent):
+        Gtk.Dialog.__init__(self, "Keyboard Shortcuts", parent,
+            Gtk.DialogFlags.DESTROY_WITH_PARENT, border_width=5)
+
+        self.add_button("Close", Gtk.ResponseType.CLOSE)
+        self.set_default_size(800, 500)
+
+        content = self.get_content_area()
+        content.set_spacing(2)
+
+        hbox = Gtk.Box()
+        content.pack_start(hbox, True, True, 0)
+
+        window = Gtk.ScrolledWindow(
+            border_width=5, shadow_type=Gtk.ShadowType.IN)
+        self.create_shortcut_list()
+        window.add(self.view)
+        hbox.pack_start(window, True, True, 0)
+
+        vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL,
+            border_width=5, spacing=10)
+        hbox.pack_start(vbox, False, False, 0)
+
+        button = Gtk.Button(label="Use Default")
+        button.connect("clicked", self.use_default)
+        vbox.pack_start(button, False, False, 0)
+
+        button = Gtk.Button(label="Use Orthodox")
+        button.connect("clicked", self.use_orthodox)
+        vbox.pack_start(button, False, False, 0)
+
     def create_shortcut_list(self):
         self.accel_store = Gtk.TreeStore(str, str, bool)
         self.accel_store.set_sort_column_id(0, Gtk.SortType.ASCENDING)
@@ -246,37 +277,6 @@ class KeyboardShortcutsDialog(Gtk.Dialog):
             set_orthodox_accels()
             self.update_accel_store()
 
-    def __init__(self, parent):
-        Gtk.Dialog.__init__(self, "Keyboard Shortcuts", parent,
-            Gtk.DialogFlags.DESTROY_WITH_PARENT, border_width=5)
-
-        self.add_button("Close", Gtk.ResponseType.CLOSE)
-        self.set_default_size(800, 500)
-
-        content = self.get_content_area()
-        content.set_spacing(2)
-
-        hbox = Gtk.Box()
-        content.pack_start(hbox, True, True, 0)
-
-        window = Gtk.ScrolledWindow(
-            border_width=5, shadow_type=Gtk.ShadowType.IN)
-        self.create_shortcut_list()
-        window.add(self.view)
-        hbox.pack_start(window, True, True, 0)
-
-        vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL,
-            border_width=5, spacing=10)
-        hbox.pack_start(vbox, False, False, 0)
-
-        button = Gtk.Button(label="Use Default")
-        button.connect("clicked", self.use_default)
-        vbox.pack_start(button, False, False, 0)
-
-        button = Gtk.Button(label="Use Orthodox")
-        button.connect("clicked", self.use_orthodox)
-        vbox.pack_start(button, False, False, 0)
-
 # Keyboard shortcuts dialog is global because shortcuts apply for a
 # whole application, not to a single window.
 shortcuts_dialog = None
@@ -309,7 +309,7 @@ class WindowAgent:
             self.loc_entry1 = self.find_loc_entry(self.main_paned.get_child1())
             self.loc_entry2 = self.find_loc_entry(self.main_paned.get_child2())
         else:
-            print 'Main paned not found'
+            logging.error("main paned not found")
 
         accel_group = Gtk.accel_groups_from_object(window)[0]
 
@@ -327,7 +327,7 @@ class WindowAgent:
             connect('<Ctrl>O', self.on_terminal)
             connect('<Ctrl>G', self.on_git)
         else:
-            print 'Location entries not found'
+            logging.error("location entry not found")
 
         if self.menubar != None:
             for w in walk(self.menubar):
@@ -342,7 +342,7 @@ class WindowAgent:
                     item.connect('activate',
                         self.show_keyboard_shortcuts_dialog)
         else:
-            print 'Menu bar not found'
+            logging.error("menu bar not found")
 
         if DEBUG:
             # Add the widget inspector.
