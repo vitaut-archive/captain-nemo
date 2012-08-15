@@ -74,13 +74,13 @@ TEST_ACCEL_PATH = '<Actions>/Test'
 class AccelTest(unittest.TestCase):
     def setUp(self):
         self.window = Gtk.Window()
-        key, mods = Gtk.accelerator_parse('T')
+        key, mods = Gtk.accelerator_parse('t')
         Gtk.AccelMap.change_entry(TEST_ACCEL_PATH, key, mods, True)
 
     def test_0_default_accels_empty(self):
         self.assertEqual({}, ACCELS)
 
-    def test_change_accel(self):
+    def test_change_existing_accel(self):
         known, key = Gtk.AccelMap.lookup_entry(TEST_ACCEL_PATH)
         self.assertTrue(known)
         self.assertEqual('t',
@@ -88,6 +88,16 @@ class AccelTest(unittest.TestCase):
         change_accel(TEST_ACCEL_PATH, 'q')
         self.assertEqual('q', ACCELS[TEST_ACCEL_PATH].current)
         self.assertEqual('t', ACCELS[TEST_ACCEL_PATH].default)
+
+    def test_change_new_accel(self):
+        path = '<Actions>/NewAction'
+        known, key = Gtk.AccelMap.lookup_entry(path)
+        self.assertFalse(known)
+        self.assertEqual('',
+            Gtk.accelerator_name(key.accel_key, key.accel_mods))
+        change_accel(path, 'n')
+        self.assertEqual('n', ACCELS[path].current)
+        self.assertEqual('', ACCELS[path].default)
 
     def test_load_save_accels(self):
         change_accel(TEST_ACCEL_PATH, 'q')
@@ -100,7 +110,7 @@ class AccelTest(unittest.TestCase):
         self.assertEqual('t', ACCELS[TEST_ACCEL_PATH].default)
 
     def test_load_save_accel_with_space(self):
-        path = '<Actions>/Accel With Space'
+        path = '<Actions>/Action With Space'
         change_accel(path, 'a')
         self.assertEqual('a', ACCELS[path].current)
         save_accels('test.accel')
