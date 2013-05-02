@@ -1,6 +1,11 @@
 Captain Nemo
 ============
 
+**Note:** Due to `the removal of important features in Nautilus version 3.6
+<http://www.omgubuntu.co.uk/2012/07/is-the-new-nautilus-a-step-in-the-direction-poll>`__
+this plugin is no longer supported. I recommend using an alternative file manager
+such as `Krusader <http://www.krusader.org/>`__ instead.
+
 Captain Nemo is an extension which converts Nautilus into a two-panel
 (orthodox) file manager.
 
